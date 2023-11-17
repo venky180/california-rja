@@ -8,6 +8,17 @@ from demo_pyecharts import ST_PY_DEMOS
 from streamlit_echarts import JsCode
 from streamlit_echarts import st_echarts
 import pandas as pd
+import folium
+from streamlit_folium import st_folium, folium_static
+import json
+from branca.colormap import LinearColormap
+import random
+import os.path
+import requests
+import geopandas
+import branca
+
+
 
 
 
@@ -166,7 +177,44 @@ The utilization percentage is an estimate of the proportion of defendants eligib
 
 ''')
     elif toggle_result == 'Maps':
-        pass
+        load_maps()
+
+def load_maps():
+    # Using GeoPandas
+    import geopandas as gpd
+    df_map = gpd.read_file('data/CA_Counties_TIGER2016.shp')
+    df_map['COUNTYFP'] = df_map['COUNTYFP'].astype(int)
+    df_data = pd.read_excel('data/rja_ratio.xlsx').dropna()
+    df_data['FIPS'] = df_data['FIPS'].astype(int)
+    print(df_map.head(),df_data.head())
+    m = folium.Map(location = [37.77, -122.41],tiles='CartoDB positron', zoom_start =5)  
+
+    # Create a choropleth layer with bold borders
+    choropleth11 = folium.Choropleth(
+        geo_data=df_map,
+        name='choropleth',
+        data=df_data,
+        columns=['FIPS','NonWhite RR (Petition/Pop)'],
+        key_on='feature.properties.COUNTYFP',
+        fill_color='PuRd',  # Set the fill color to white
+        fill_opacity=0.5,      # Set fill opacity to 0
+        line_opacity=1,       # Set line opacity to 1 (fully opaque)
+        line_color='black',   # Set the line color to black
+        line_weight=2.5       # Set the line weight to make it bold
+    ).add_to(m)
+
+    
+    df_indexed = df_data.set_index('FIPS')[['county','NonWhite RR (Petition/Pop)']]
+    for i,feature in enumerate(choropleth11.geojson.data['features']):
+        fp = int(feature['properties']['COUNTYFP'])
+        df_fil = df_indexed.loc[fp]
+        feature['properties']['NonWhite RR (Petition/Pop)'] = df_fil['NonWhite RR (Petition/Pop)']
+        
+    tooltipl = ['NAME','NonWhite RR (Petition/Pop)']
+    choropleth11.geojson.add_child(folium.features.GeoJsonTooltip(tooltipl,['County Name','NonWhite RR (Petition/Pop)']))
+
+    st_map = st_folium(m, width=1050, height=675,returned_objects=[])
+    
        
 if __name__ == "__main__":
     st.set_page_config(
